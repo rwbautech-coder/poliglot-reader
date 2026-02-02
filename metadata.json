@@ -1,0 +1,5 @@
+{
+  "name": "PolyGlot Reader",
+  "description": "A client-side text-to-speech reader for PDF/TXT files using Piper (PL) and Kokoro (EN) integration architecture.",
+  "requestFramePermissions": []
+}
