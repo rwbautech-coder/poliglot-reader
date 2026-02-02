@@ -117,30 +117,40 @@ function App() {
     try {
       const generator = getTTSGenerator(language, ttsConfig);
       
+      // Create and unlock audio context/element on user gesture
+      if (audioRef.current) {
+        audioRef.current.load();
+      }
+
       // Generate first chunk
       const firstChunk = chunks[0];
       console.log("Requesting generation for chunk 0:", firstChunk.substring(0, 30));
       const blob = await generator.generate(firstChunk, language, ttsConfig);
-      console.log("Blob received:", blob);
       
-      // If we get here, it's an API blob
       const url = URL.createObjectURL(blob);
-      console.log("Created Object URL:", url);
       setAudioState(prev => ({ ...prev, isLoading: false, audioBlob: blob }));
       
       if (audioRef.current) {
         audioRef.current.src = url;
-        console.log("Setting audioRef.src and calling play()");
-        audioRef.current.play().catch(e => {
-            console.error("Playback failed after generation:", e);
-            setError(`Playback failed: ${e.message}. You might need to click Play again after the model is ready.`);
-        });
+        const playPromise = audioRef.current.play();
+        
+        if (playPromise !== undefined) {
+          playPromise.catch(e => {
+            console.error("Playback prevented:", e);
+            setAudioState(prev => ({ ...prev, isPlaying: false }));
+            setError("Browser prevented playback. Please click the Play button again.");
+          });
+        }
         setAudioState(prev => ({ ...prev, isPlaying: true }));
       }
 
     } catch (err: any) {
-      // Direct error display without fallback
-      setError(`TTS Error: ${err.message}`);
+      console.error("TTS Generation Error:", err);
+      let userMessage = err.message;
+      if (err.message.includes("OPFS") || err.message.includes("not supported")) {
+        userMessage = "Your browser doesn't support local AI speech (Piper). Please try Chrome or Edge, or use English with the Kokoro engine.";
+      }
+      setError(`TTS Error: ${userMessage}`);
       setAudioState(prev => ({ ...prev, isLoading: false }));
     }
   };

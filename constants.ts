@@ -7,7 +7,7 @@ export const APP_CONFIG = {
   DEFAULT_PIPER_URL: '', 
   DEFAULT_PIPER_VOICE: 'pl_PL-gosia-medium',
   
-  DEFAULT_KOKORO_URL: 'http://localhost:8880/v1/audio/speech',
+  DEFAULT_KOKORO_URL: 'https://kokoro-tts.onrender.com/v1/audio/speech',
   DEFAULT_KOKORO_VOICE: 'af_bella',
   
   // Chunking
