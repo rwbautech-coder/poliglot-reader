@@ -17,14 +17,34 @@ export const SettingsModal: React.FC<Props> = ({ config, onSave, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4 text-slate-800">TTS Engine Configuration</h2>
+        <h2 className="text-xl font-bold mb-4 text-slate-800">TTS Settings</h2>
         
         <div className="space-y-6">
-          <p className="text-sm text-slate-500 italic mb-4">
-               System/Native TTS is disabled. This app uses high-quality AI models.
-          </p>
+          {/* Engine Selection */}
+          <div className="space-y-3">
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+              Select TTS Engine
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {(['native', 'piper', 'kokoro'] as const).map((eng) => (
+                <button
+                  key={eng}
+                  onClick={() => handleChange('engine', eng)}
+                  className={`px-3 py-2 rounded border text-sm font-medium capitalize transition-colors ${
+                    localConfig.engine === eng 
+                      ? 'bg-primary border-primary text-white' 
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-primary'
+                  }`}
+                >
+                  {eng}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-slate-400">
+              <b>Native:</b> Fast, works everywhere. <b>Piper/Kokoro:</b> High-quality AI.
+            </p>
+          </div>
 
-          {/* Piper Settings */}
           <div className="space-y-3 border-t pt-4">
             <h3 className="font-semibold text-slate-800 flex items-center gap-2">
                 <span className="w-2 h-6 bg-red-500 rounded-sm"></span>

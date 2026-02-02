@@ -40,8 +40,8 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
 
-  // Removed useNativeFallback from state
   const [ttsConfig, setTtsConfig] = useState<TtsConfig>({
+    engine: 'native',
     piperUrl: APP_CONFIG.DEFAULT_PIPER_URL,
     piperVoice: APP_CONFIG.DEFAULT_PIPER_VOICE,
     kokoroUrl: APP_CONFIG.DEFAULT_KOKORO_URL,
@@ -60,121 +60,85 @@ function App() {
     audioBlob: null,
   });
 
-  // Refs
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const textChunks = useRef<string[]>([]);
-
-  // Effects
-  useEffect(() => {
-    // Auto-detect language when text changes
-    if (text) {
-      const detected = detectLanguage(text);
-      setLanguage(detected);
-    }
-  }, [text]);
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsLoading(true);
-    setError(null);
-    setAudioState(prev => ({ ...prev, isPlaying: false, audioBlob: null, progress: 0 }));
-    setDownloadProgress(0);
-    if(audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = "";
-    }
-
-    try {
-      const content = await readFileContent(file);
-      setFileData({
-        id: crypto.randomUUID(),
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        content: content
-      });
-      setText(content);
-    } catch (err: any) {
-      setError(`Failed to read file: ${err.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const generateAudio = async () => {
     if (!text) return;
+    setError(null);
+
+    // NATIVE MODE - Guaranteed to work in most browsers
+    if (ttsConfig.engine === 'native') {
+      console.log("Using Native System TTS...");
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = language === SupportedLanguage.PL ? 'pl-PL' : 'en-US';
+      utterance.rate = ttsConfig.rate;
+      utterance.volume = ttsConfig.volume;
+      
+      utterance.onstart = () => setAudioState(p => ({ ...p, isPlaying: true, isLoading: false }));
+      utterance.onend = () => setAudioState(p => ({ ...p, isPlaying: false }));
+      utterance.onerror = (e) => {
+        console.error("Native TTS Error:", e);
+        setError(`System TTS Error: ${e.error}`);
+        setAudioState(p => ({ ...p, isPlaying: false, isLoading: false }));
+      };
+
+      window.speechSynthesis.speak(utterance);
+      return;
+    }
     
-    // Chunking
+    // AI ENGINES MODE (Piper/Kokoro)
     const chunks = chunkText(text);
     textChunks.current = chunks;
-    setAudioState(prev => ({ 
-      ...prev, 
-      isLoading: true, 
-      totalChunks: chunks.length, 
-      currentChunkIndex: 0 
-    }));
-    setDownloadProgress(0);
+    setAudioState(prev => ({ ...prev, isLoading: true }));
 
     try {
-      // Ensure audio element is interaction-ready
-      if (audioRef.current) {
-        audioRef.current.play().then(() => audioRef.current?.pause()).catch(() => {});
-      }
-
       const generator = getTTSGenerator(language, ttsConfig);
-      
-      // Generate first chunk
-      const firstChunk = chunks[0];
-      const blob = await generator.generate(firstChunk, language, ttsConfig, (p) => {
-        setDownloadProgress(Math.round(p * 100));
-      });
-      
+      const blob = await generator.generate(chunks[0], language, ttsConfig, (p) => setDownloadProgress(Math.round(p * 100)));
       const url = URL.createObjectURL(blob);
-      setAudioState(prev => ({ ...prev, isLoading: false, audioBlob: blob }));
-      setDownloadProgress(0);
       
       if (audioRef.current) {
         audioRef.current.src = url;
-        audioRef.current.play().catch(e => {
-            console.error("Playback prevented:", e);
-            setError("Click the button again to play.");
-        });
-        setAudioState(prev => ({ ...prev, isPlaying: true }));
+        // The key fix for NotSupportedError is handling the promise
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.then(() => {
+            setAudioState(prev => ({ ...prev, isPlaying: true, isLoading: false, audioBlob: blob }));
+          }).catch(err => {
+            console.error("Audio playback failed:", err);
+            setError("Click Play again (browser security blocked auto-play).");
+            setAudioState(prev => ({ ...prev, isPlaying: false, isLoading: false }));
+          });
+        }
       }
-
     } catch (err: any) {
-      console.error("TTS Generation Error:", err);
-      
-      if (err.message === "OPFS_NOT_SUPPORTED" || err.message.includes("OPFS")) {
-          // FALLBACK TO NATIVE
-          setError("Piper (AI) is not supported in this browser. Falling back to System Voice.");
-          const utterance = new SpeechSynthesisUtterance(text.slice(0, 1000));
-          utterance.lang = language === SupportedLanguage.PL ? 'pl-PL' : 'en-US';
-          utterance.onend = () => setAudioState(p => ({...p, isPlaying: false}));
-          window.speechSynthesis.speak(utterance);
-          setAudioState(prev => ({ ...prev, isPlaying: true, isLoading: false }));
-      } else {
-          setError(`TTS Error: ${err.message}`);
-          setAudioState(prev => ({ ...prev, isLoading: false }));
-      }
-      setDownloadProgress(0);
+      console.error("AI TTS Error:", err);
+      setError(`AI Engine Error: ${err.message}. Switching to System Voice...`);
+      setTtsConfig(prev => ({ ...prev, engine: 'native' }));
     }
   };
 
   const togglePlay = () => {
+    if (ttsConfig.engine === 'native') {
+      if (audioState.isPlaying) {
+        window.speechSynthesis.pause();
+        setAudioState(p => ({ ...p, isPlaying: false }));
+      } else {
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+          setAudioState(p => ({ ...p, isPlaying: true }));
+        } else {
+          generateAudio();
+        }
+      }
+      return;
+    }
+
     if (audioRef.current) {
       if (audioState.isPlaying) {
         audioRef.current.pause();
         setAudioState(prev => ({ ...prev, isPlaying: false }));
       } else {
-        if (!audioRef.current.src) {
-            generateAudio();
-        } else {
-            audioRef.current.play();
-            setAudioState(prev => ({ ...prev, isPlaying: true }));
-        }
+        if (!audioRef.current.src) generateAudio();
+        else audioRef.current.play();
       }
     }
   };

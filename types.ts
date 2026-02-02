@@ -12,7 +12,7 @@ export interface FileData {
 }
 
 export interface TtsConfig {
-  // useNativeFallback removed
+  engine: 'piper' | 'kokoro' | 'native';
   piperUrl: string; // URL for Polish Piper endpoint/worker
   piperVoice?: string; // Voice ID for Piper
   kokoroUrl: string; // URL for English Kokoro endpoint/worker
