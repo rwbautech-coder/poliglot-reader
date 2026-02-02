@@ -44,9 +44,9 @@ class PiperTTS implements ITTSGenerator {
             // Initialize module if not already loaded
             if (!piperModule) {
                 console.log("Initializing Piper TTS Web Module from CDN...");
-                // Using jsdelivr as it handles ESM + WASM paths slightly better for this package
-                // @ts-ignore
-                piperModule = await import('https://cdn.jsdelivr.net/npm/@mintplex-labs/piper-tts-web@1.0.0/+esm');
+                // Using full URL to avoid potential resolution issues
+                const moduleUrl = 'https://cdn.jsdelivr.net/npm/@mintplex-labs/piper-tts-web@1.0.0/dist/index.js';
+                piperModule = await import(/* @vite-ignore */ moduleUrl);
                 console.log("Piper Module loaded successfully:", piperModule);
             }
             
