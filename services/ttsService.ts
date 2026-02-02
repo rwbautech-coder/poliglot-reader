@@ -5,7 +5,7 @@ import { SupportedLanguage, TtsConfig } from '../types';
  * Retuns a Promise that resolves to an AudioBlob.
  */
 export interface ITTSGenerator {
-  generate(text: string, lang: SupportedLanguage, config: TtsConfig): Promise<Blob>;
+  generate(text: string, lang: SupportedLanguage, config: TtsConfig, onProgress?: (progress: number) => void): Promise<Blob>;
 }
 
 // Global cache for the Piper module to avoid re-importing/re-initializing
@@ -13,14 +13,14 @@ let piperModule: any = null;
 
 // 1. Piper TTS (Polish) - Hybrid API/WASM wrapper
 class PiperTTS implements ITTSGenerator {
-  async generate(text: string, lang: SupportedLanguage, config: TtsConfig): Promise<Blob> {
+  async generate(text: string, lang: SupportedLanguage, config: TtsConfig, onProgress?: (progress: number) => void): Promise<Blob> {
     
     // MODE A: HTTP Server (Docker/Python)
-    // If user provided a URL starting with http, use Server mode.
     if (config.piperUrl && config.piperUrl.trim().startsWith('http')) {
+        // ... (existing code for HTTP mode remains same)
         const url = new URL(config.piperUrl);
         url.searchParams.append('text', text);
-        url.searchParams.append('output_file', 'false'); // Stream
+        url.searchParams.append('output_file', 'false');
         
         if (!url.searchParams.has('voice')) {
           url.searchParams.append('voice', config.piperVoice || 'pl_PL-gosia-medium'); 
@@ -37,42 +37,37 @@ class PiperTTS implements ITTSGenerator {
     } 
     
     // MODE B: Client-Side WASM (Default)
-    // Uses @mintplex-labs/piper-tts-web via ESM CDN
     else {
         try {
-            console.log("Starting Piper WASM generation...");
-            // Initialize module if not already loaded
             if (!piperModule) {
-                console.log("Initializing Piper TTS Web Module from CDN...");
-                // Using full URL to avoid potential resolution issues
                 const moduleUrl = 'https://cdn.jsdelivr.net/npm/@mintplex-labs/piper-tts-web@1.0.0/dist/index.js';
                 piperModule = await import(/* @vite-ignore */ moduleUrl);
-                console.log("Piper Module loaded successfully:", piperModule);
             }
             
-            // Voice ID examples: 'pl_PL-gosia-medium', 'en_US-hfc_female-medium'
             const voiceId = config.piperVoice || 'pl_PL-gosia-medium';
             
-            console.log(`Generating Piper TTS (Client-Side) for voice: ${voiceId}, text snippet: ${text.substring(0, 20)}...`);
-            
-            // Generate audio
+            // Generate audio with progress monitoring
             const wavBlob = await piperModule.predict({
                 text: text,
                 voiceId: voiceId,
+                onProgress: (p: any) => {
+                    // piper-tts-web provides progress events during model download
+                    if (onProgress && p.progress) {
+                        onProgress(p.progress);
+                    }
+                }
             });
 
-            console.log("Piper generation successful, blob size:", wavBlob.size);
             return wavBlob;
         } catch (e: any) {
+            // ... (error handling remains same)
             console.error("Piper WASM Error details:", e);
-            
             let msg = e.message;
             if (e.message.includes("fetch")) {
                 msg = "Failed to download voice model. Check internet connection.";
             } else if (e.message.includes("OPFS")) {
                 msg = "Browser storage error (OPFS). Try using Chrome/Edge/Firefox.";
             }
-
             throw new Error(`Piper Client-Side Error: ${msg}`);
         }
     }

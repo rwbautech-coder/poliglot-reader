@@ -38,6 +38,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<number>(0);
 
   // Removed useNativeFallback from state
   const [ttsConfig, setTtsConfig] = useState<TtsConfig>({
@@ -79,6 +80,7 @@ function App() {
     setIsLoading(true);
     setError(null);
     setAudioState(prev => ({ ...prev, isPlaying: false, audioBlob: null, progress: 0 }));
+    setDownloadProgress(0);
     if(audioRef.current) {
         audioRef.current.pause();
         audioRef.current.src = "";
@@ -113,6 +115,7 @@ function App() {
       totalChunks: chunks.length, 
       currentChunkIndex: 0 
     }));
+    setDownloadProgress(0);
 
     try {
       const generator = getTTSGenerator(language, ttsConfig);
@@ -124,11 +127,13 @@ function App() {
 
       // Generate first chunk
       const firstChunk = chunks[0];
-      console.log("Requesting generation for chunk 0:", firstChunk.substring(0, 30));
-      const blob = await generator.generate(firstChunk, language, ttsConfig);
+      const blob = await generator.generate(firstChunk, language, ttsConfig, (p) => {
+        setDownloadProgress(Math.round(p * 100));
+      });
       
       const url = URL.createObjectURL(blob);
       setAudioState(prev => ({ ...prev, isLoading: false, audioBlob: blob }));
+      setDownloadProgress(0);
       
       if (audioRef.current) {
         audioRef.current.src = url;
@@ -152,6 +157,7 @@ function App() {
       }
       setError(`TTS Error: ${userMessage}`);
       setAudioState(prev => ({ ...prev, isLoading: false }));
+      setDownloadProgress(0);
     }
   };
 
@@ -318,9 +324,30 @@ function App() {
 
            {/* Loading State */}
            {audioState.isLoading && (
-             <div className="bg-blue-50 text-blue-600 p-3 rounded-lg text-sm flex items-center gap-2 animate-pulse">
-               <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
-               <span>Generating Audio via <b>{language === 'PL' ? 'Piper WASM (Client-Side)' : 'Kokoro API'}</b>...</span>
+             <div className="bg-blue-50 text-blue-600 p-4 rounded-xl text-sm border border-blue-100 shadow-sm animate-fade-in space-y-3">
+               <div className="flex items-center gap-3">
+                 <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+                 <span className="font-medium">
+                   {downloadProgress > 0 
+                     ? `Downloading AI Model: ${downloadProgress}%` 
+                     : `Initializing ${language === 'PL' ? 'Piper (Local AI)' : 'Kokoro (API)'}...`}
+                 </span>
+               </div>
+               
+               {downloadProgress > 0 && (
+                 <div className="w-full bg-blue-200 rounded-full h-2.5 overflow-hidden">
+                   <div 
+                     className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-out" 
+                     style={{ width: `${downloadProgress}%` }}
+                   ></div>
+                 </div>
+               )}
+               
+               {language === 'PL' && downloadProgress > 0 && (
+                 <p className="text-[10px] text-blue-500 italic">
+                   The Polish voice model (~40MB) is being saved locally in your browser for future use.
+                 </p>
+               )}
              </div>
            )}
 
