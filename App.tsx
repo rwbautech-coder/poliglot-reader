@@ -119,15 +119,22 @@ function App() {
       
       // Generate first chunk
       const firstChunk = chunks[0];
+      console.log("Requesting generation for chunk 0:", firstChunk.substring(0, 30));
       const blob = await generator.generate(firstChunk, language, ttsConfig);
+      console.log("Blob received:", blob);
       
       // If we get here, it's an API blob
       const url = URL.createObjectURL(blob);
+      console.log("Created Object URL:", url);
       setAudioState(prev => ({ ...prev, isLoading: false, audioBlob: blob }));
       
       if (audioRef.current) {
         audioRef.current.src = url;
-        audioRef.current.play();
+        console.log("Setting audioRef.src and calling play()");
+        audioRef.current.play().catch(e => {
+            console.error("Playback failed after generation:", e);
+            setError(`Playback failed: ${e.message}. You might need to click Play again after the model is ready.`);
+        });
         setAudioState(prev => ({ ...prev, isPlaying: true }));
       }
 

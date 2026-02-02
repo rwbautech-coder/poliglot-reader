@@ -40,27 +40,28 @@ class PiperTTS implements ITTSGenerator {
     // Uses @mintplex-labs/piper-tts-web via ESM CDN
     else {
         try {
+            console.log("Starting Piper WASM generation...");
             // Initialize module if not already loaded
             if (!piperModule) {
-                console.log("Initializing Piper TTS Web Module...");
+                console.log("Initializing Piper TTS Web Module from CDN...");
                 // Using jsdelivr as it handles ESM + WASM paths slightly better for this package
                 // @ts-ignore
                 piperModule = await import('https://cdn.jsdelivr.net/npm/@mintplex-labs/piper-tts-web@1.0.0/+esm');
+                console.log("Piper Module loaded successfully:", piperModule);
             }
             
             // Voice ID examples: 'pl_PL-gosia-medium', 'en_US-hfc_female-medium'
             const voiceId = config.piperVoice || 'pl_PL-gosia-medium';
             
-            console.log(`Generating Piper TTS (Client-Side) for voice: ${voiceId}`);
+            console.log(`Generating Piper TTS (Client-Side) for voice: ${voiceId}, text snippet: ${text.substring(0, 20)}...`);
             
             // Generate audio
-            // predict returns a Blob (wav) or throws an error
-            // The first time this runs for a voice, it will download the ONNX model to OPFS.
             const wavBlob = await piperModule.predict({
                 text: text,
                 voiceId: voiceId,
             });
 
+            console.log("Piper generation successful, blob size:", wavBlob.size);
             return wavBlob;
         } catch (e: any) {
             console.error("Piper WASM Error details:", e);
