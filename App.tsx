@@ -60,7 +60,12 @@ function App() {
     audioBlob: null,
   });
 
-  const generateAudio = async () => {
+  // Refs
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const textChunks = useRef<string[]>([]);
+
+  // Effects
+  useEffect(() => {
     if (!text) return;
     setError(null);
 
@@ -342,4 +347,4 @@ function App() {
   );
 }
 
-export default App;
+export default App;\nexport default App;
