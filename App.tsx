@@ -66,6 +66,14 @@ function App() {
 
   // Effects
   useEffect(() => {
+    // Auto-detect language when text changes
+    if (text) {
+      const detected = detectLanguage(text);
+      setLanguage(detected);
+    }
+  }, [text]);
+
+  const generateAudio = async () => {
     if (!text) return;
     setError(null);
 
@@ -347,4 +355,4 @@ function App() {
   );
 }
 
-export default App;\nexport default App;
+export default App;
