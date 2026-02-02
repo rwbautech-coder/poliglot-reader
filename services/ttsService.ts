@@ -39,6 +39,12 @@ class PiperTTS implements ITTSGenerator {
     // MODE B: Client-Side WASM (Default)
     else {
         try {
+            // Check for OPFS support (required by Piper)
+            const hasOPFS = 'getDirectory' in navigator.storage;
+            if (!hasOPFS) {
+              throw new Error("OPFS_NOT_SUPPORTED");
+            }
+
             if (!piperModule) {
                 const moduleUrl = 'https://cdn.jsdelivr.net/npm/@mintplex-labs/piper-tts-web@1.0.0/dist/index.js';
                 piperModule = await import(/* @vite-ignore */ moduleUrl);

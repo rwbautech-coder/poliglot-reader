@@ -118,13 +118,13 @@ function App() {
     setDownloadProgress(0);
 
     try {
-      const generator = getTTSGenerator(language, ttsConfig);
-      
-      // Create and unlock audio context/element on user gesture
+      // Ensure audio element is interaction-ready
       if (audioRef.current) {
-        audioRef.current.load();
+        audioRef.current.play().then(() => audioRef.current?.pause()).catch(() => {});
       }
 
+      const generator = getTTSGenerator(language, ttsConfig);
+      
       // Generate first chunk
       const firstChunk = chunks[0];
       const blob = await generator.generate(firstChunk, language, ttsConfig, (p) => {
@@ -137,26 +137,28 @@ function App() {
       
       if (audioRef.current) {
         audioRef.current.src = url;
-        const playPromise = audioRef.current.play();
-        
-        if (playPromise !== undefined) {
-          playPromise.catch(e => {
+        audioRef.current.play().catch(e => {
             console.error("Playback prevented:", e);
-            setAudioState(prev => ({ ...prev, isPlaying: false }));
-            setError("Browser prevented playback. Please click the Play button again.");
-          });
-        }
+            setError("Click the button again to play.");
+        });
         setAudioState(prev => ({ ...prev, isPlaying: true }));
       }
 
     } catch (err: any) {
       console.error("TTS Generation Error:", err);
-      let userMessage = err.message;
-      if (err.message.includes("OPFS") || err.message.includes("not supported")) {
-        userMessage = "Your browser doesn't support local AI speech (Piper). Please try Chrome or Edge, or use English with the Kokoro engine.";
+      
+      if (err.message === "OPFS_NOT_SUPPORTED" || err.message.includes("OPFS")) {
+          // FALLBACK TO NATIVE
+          setError("Piper (AI) is not supported in this browser. Falling back to System Voice.");
+          const utterance = new SpeechSynthesisUtterance(text.slice(0, 1000));
+          utterance.lang = language === SupportedLanguage.PL ? 'pl-PL' : 'en-US';
+          utterance.onend = () => setAudioState(p => ({...p, isPlaying: false}));
+          window.speechSynthesis.speak(utterance);
+          setAudioState(prev => ({ ...prev, isPlaying: true, isLoading: false }));
+      } else {
+          setError(`TTS Error: ${err.message}`);
+          setAudioState(prev => ({ ...prev, isLoading: false }));
       }
-      setError(`TTS Error: ${userMessage}`);
-      setAudioState(prev => ({ ...prev, isLoading: false }));
       setDownloadProgress(0);
     }
   };
